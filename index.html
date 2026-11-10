@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YAPI Adventure</title>
+
+<style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #182238;
+  font-family: Arial, sans-serif;
+  overflow: hidden;
+  color: white;
+  text-align: center;
+}
+
+h2 {
+  margin: 12px 0 5px;
+}
+
+#game {
+  display: block;
+  width: 100%;
+  max-width: 950px;
+  height: auto;
+  margin: 10px auto;
+  background: #75d7ff;
+  border: 4px solid white;
+  border-radius: 10px;
+}
+
+.info {
+  font-size: 14px;
+  margin: 5px;
+}
+
+.controls {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+  margin: 12px;
+}
+
+button {
+  border: none;
+  border-radius: 12px;
+  padding: 15px 25px;
+  font-size: 23px;
+  font-weight: bold;
+  background: #ffcc33;
+  color: #222;
+  touch-action: none;
+}
+
+button:active {
+  background: orange;
+  transform: scale(.95);
+}
+
+#restart {
+  font-size: 15px;
+  padding: 10px 20px;
+  background: #48d17b;
+}
+</style>
+</head>
+
+<body>
+
+<h2>🍄 YAPI ADVENTURE</h2>
+<div class="info">
+  Kumpulkan koin dan hindari musuh!
+</div>
+
+<canvas id="game" width="900" height="450"></canvas>
+
+<div class="controls">
+  <button id="left">⬅️</button>
+  <button id="jump">⬆️</button>
+  <button id="right">➡️</button>
+</div>
+
+<button id="restart">🔄 Ulangi Game</button>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+const playerImg = new Image();
+playerImg.src = "player.png";
+
+const enemyImg = new Image();
+enemyImg.src = "musuh.png";
+
+// GAME SETTINGS
+const gravity = 0.65;
+const worldWidth = 3500;
+
+let camera = 0;
+let score = 0;
+let gameOver = false;
+let win = false;
+
+let keys = {
+  left: false,
+  right: false
+};
+
+let player = {
+  x: 80,
+  y: 250,
+  width: 65,
+  height: 90,
+  vx: 0,
+  vy: 0,
+  speed: 4,
+  jump: -13,
+  grounded: false
+};
+
+// PLATFORM
+const platforms = [
+  {x: 0, y: 400, w: 700, h: 50},
+  {x: 780, y: 400, w: 650, h: 50},
+  {x: 1500, y: 400, w: 600, h: 50},
+  {x: 2200, y: 400, w: 600, h: 50},
+  {x: 2900, y: 400, w: 600, h: 50},
+
+  {x: 300, y: 310, w: 130, h: 20},
+  {x: 550, y: 250, w: 130, h: 20},
+  {x: 950, y: 310, w: 150, h: 20},
+  {x: 1200, y: 260, w: 150, h: 20},
+  {x: 1650, y: 310, w: 150, h: 20},
+  {x: 1950, y: 250, w: 150, h: 20},
+  {x: 2400, y: 300, w: 150, h: 20},
+  {x: 2700, y: 240, w: 150, h: 20}
+];
+
+// MUSUH
+let enemies = [
+  {x: 450, y: 340, w: 65, h: 60, min: 400, max: 650, speed: 1.5},
+  {x: 1050, y: 340, w: 65, h: 60, min: 850, max: 1350, speed: 2},
+  {x: 1800, y: 340, w: 65, h: 60, min: 1550, max: 2050, speed: 1.7},
+  {x: 2500, y: 340, w: 65, h: 60, min: 2250, max: 2750, speed: 2}
+];
+
+// KOIN
+let coins = [
+  {x: 330, y: 270, got: false},
+  {x: 580, y: 210, got: false},
+  {x: 850, y: 350, got: false},
+  {x: 1000, y: 270, got: false},
+  {x: 1250, y: 220, got: false},
+  {x: 1600, y: 350, got: false},
+  {x: 1700, y: 270, got: false},
+  {x: 2000, y: 210, got: false},
+  {x: 2450, y: 260, got: false},
+  {x: 2750, y: 200, got: false}
+];
+
+function drawBackground() {
+  // LANGIT
+  let sky = ctx.createLinearGradient(0, 0, 0, 450);
+  sky.addColorStop(0, "#56c9ff");
+  sky.addColorStop(1, "#d8f7ff");
+
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, 900, 450);
+
+  // AWAN
+  for (let i = 0; i < 8; i++) {
+    let x = ((i * 180 - camera * 0.3) % 1100 + 1100) % 1100;
+
+    ctx.fillStyle = "white";
+    ctx.beginPath();
+    ctx.arc(x, 90, 25, 0, Math.PI * 2);
+    ctx.arc(x + 30, 80, 32, 0, Math.PI * 2);
+    ctx.arc(x + 60, 90, 25, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // BUKIT
+  for (let i = 0; i < 9; i++) {
+    let x = i * 160 - camera * 0.5;
+
+    ctx.fillStyle = "#67c96a";
+    ctx.beginPath();
+    ctx.arc(x, 410, 110, Math.PI, 0);
+    ctx.fill();
+  }
+}
+
+function drawPlatforms() {
+  platforms.forEach(p => {
+    let x = p.x - camera;
+
+    if (x + p.w < 0 || x > 900) return;
+
+    ctx.fillStyle = "#a85b2b";
+    ctx.fillRect(x, p.y, p.w, p.h);
+
+    ctx.fillStyle = "#37bd4c";
+    ctx.fillRect(x, p.y, p.w, 12);
+
+    ctx.strokeStyle = "#66391d";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(x, p.y, p.w, p.h);
+  });
+}
+
+function drawPlayer() {
+  if (playerImg.complete && playerImg.naturalWidth > 0) {
+    ctx.drawImage(
+      playerImg,
+      player.x - camera,
+      player.y,
+      player.width,
+      player.height
+    );
+  } else {
+    ctx.fillStyle = "magenta";
+    ctx.fillRect(
+      player.x - camera,
+      player.y,
+      player.width,
+      player.height
+    );
+  }
+}
+
+function drawEnemies() {
+  enemies.forEach(e => {
+    if (e.x + e.w < camera || e.x > camera + 900) return;
+
+    if (enemyImg.complete && enemyImg.naturalWidth > 0) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(
+        e.x - camera + e.w / 2,
+        e.y + e.h / 2,
+        e.w / 2,
+        0,
+        Math.PI * 2
+      );
+      ctx.clip();
+
+      ctx.drawImage(
+        enemyImg,
+        e.x - camera,
+        e.y,
+        e.w,
+        e.h
+      );
+      ctx.restore();
+    } else {
+      ctx.fillStyle = "red";
+      ctx.fillRect(e.x - camera, e.y, e.w, e.h);
+    }
+  });
+}
+
+function drawCoins() {
+  coins.forEach(c => {
+    if (c.got) return;
+
+    ctx.fillStyle = "#ffd700";
+    ctx.beginPath();
+    ctx.arc(c.x - camera, c.y, 12, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = "#f29b00";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  });
+}
+
+function update() {
+  if (gameOver || win) return;
+
+  // GERAK PLAYER
+  player.vx = 0;
+
+  if (keys.left) player.vx = -player.speed;
+  if (keys.right) player.vx = player.speed;
+
+  player.x += player.vx;
+
+  if (player.x < 0) player.x = 0;
+  if (player.x > worldWidth - player.width) {
+    player.x = worldWidth - player.width;
+  }
+
+  // GRAVITASI
+  player.vy += gravity;
+  player.y += player.vy;
+
+  player.grounded = false;
+
+  // TABRAKAN PLATFORM
+  platforms.forEach(p => {
+    if (
+      player.x + player.width > p.x &&
+      player.x < p.x + p.w &&
+      player.y + player.height > p.y &&
+      player.y + player.height - player.vy <= p.y + 5 &&
+      player.vy >= 0
+    ) {
+      player.y = p.y - player.height;
+      player.vy = 0;
+      player.grounded = true;
+    }
+  });
+
+  // JATUH
+  if (player.y > 500) {
+    gameOver = true;
+  }
+
+  // MUSUH BERGERAK
+  enemies.forEach(e => {
+    e.x += e.speed;
+
+    if (e.x < e.min || e.x > e.max) {
+      e.speed *= -1;
+    }
+
+    // TABRAKAN MUSUH
+    if (
+      player.x + player.width - 12 > e.x + 8 &&
+      player.x + 12 < e.x + e.w - 8 &&
+      player.y + player.height > e.y + 8 &&
+      player.y < e.y + e.h - 8
+    ) {
+      // Melompat di atas musuh
+      if (
+        player.vy > 0 &&
+        player.y + player.height < e.y + 30
+      ) {
+        e.x = -1000;
+        player.vy = -9;
+        score += 50;
+      } else {
+        gameOver = true;
+      }
+    }
+  });
+
+  // AMBIL KOIN
+  coins.forEach(c => {
+    if (
+      !c.got &&
+      Math.abs((player.x + player.width / 2) - c.x) < 35 &&
+      Math.abs((player.y + player.height / 2) - c.y) < 35
+    ) {
+      c.got = true;
+      score += 10;
+    }
+  });
+
+  // KAMERA
+  camera = player.x - 300;
+
+  if (camera < 0) camera = 0;
+  if (camera > worldWidth - 900) {
+    camera = worldWidth - 900;
+  }
+
+  // MENANG
+  if (player.x > worldWidth - 150) {
+    win = true;
+  }
+}
+
+function draw() {
+  drawBackground();
+  drawPlatforms();
+  drawCoins();
+  drawEnemies();
+  drawPlayer();
+
+  // SCORE
+  ctx.fillStyle = "#172238";
+  ctx.font = "bold 22px Arial";
+  ctx.fillText("SCORE: " + score, 20, 35);
+
+  ctx.fillText("YAPI ADVENTURE", 350, 35);
+
+  // GAME OVER
+  if (gameOver || win) {
+    ctx.fillStyle = "rgba(0,0,0,0.75)";
+    ctx.fillRect(0, 0, 900, 450);
+
+    ctx.textAlign = "center";
+    ctx.fillStyle = win ? "#ffe14d" : "white";
+    ctx.font = "bold 42px Arial";
+    ctx.fillText(
+      win ? "KAMU MENANG!" : "GAME OVER!",
+      450,
+      200
+    );
+
+    ctx.fillStyle = "white";
+    ctx.font = "22px Arial";
+    ctx.fillText("Score: " + score, 450, 245);
+    ctx.fillText("Tekan tombol ulangi", 450, 285);
+
+    ctx.textAlign = "left";
+  }
+}
+
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// KEYBOARD
+document.addEventListener("keydown", e => {
+  if (
+    ["ArrowLeft", "ArrowRight", "ArrowUp", "Space"].includes(e.code)
+  ) e.preventDefault();
+
+  if (e.code === "ArrowLeft" || e.code === "KeyA") {
+    keys.left = true;
+  }
+
+  if (e.code === "ArrowRight" || e.code === "KeyD") {
+    keys.right = true;
+  }
+
+  if (
+    (e.code === "ArrowUp" ||
+     e.code === "Space" ||
+     e.code === "KeyW") &&
+    player.grounded &&
+    !gameOver &&
+    !win
+  ) {
+    player.vy = player.jump;
+    player.grounded = false;
+  }
+});
+
+document.addEventListener("keyup", e => {
+  if (e.code === "ArrowLeft" || e.code === "KeyA") {
+    keys.left = false;
+  }
+
+  if (e.code === "ArrowRight" || e.code === "KeyD") {
+    keys.right = false;
+  }
+});
+
+// TOMBOL HP
+function holdButton(id, direction) {
+  const btn = document.getElementById(id);
+
+  btn.addEventListener("pointerdown", e => {
+    e.preventDefault();
+    keys[direction] = true;
+    btn.setPointerCapture(e.pointerId);
+  });
+
+  const release = e => {
+    e.preventDefault();
+    keys[direction] = false;
+  };
+
+  btn.addEventListener("pointerup", release);
+  btn.addEventListener("pointercancel", release);
+  btn.addEventListener("lostpointercapture", () => {
+    keys[direction] = false;
+  });
+}
+
+holdButton("left", "left");
+holdButton("right", "right");
+
+document.getElementById("jump").addEventListener(
+  "pointerdown",
+  e => {
+    e.preventDefault();
+
+    if (player.grounded && !gameOver && !win) {
+      player.vy = player.jump;
+      player.grounded = false;
+    }
+  }
+);
+
+// ULANG GAME
+document.getElementById("restart").onclick = () => {
+  player.x = 80;
+  player.y = 250;
+  player.vx = 0;
+  player.vy = 0;
+
+  camera = 0;
+  score = 0;
+  gameOver = false;
+  win = false;
+
+  enemies = [
+    {x:450,y:340,w:65,h:60,min:400,max:650,speed:1.5},
+    {x:1050,y:340,w:65,h:60,min:850,max:1350,speed:2},
+    {x:1800,y:340,w:65,h:60,min:1550,max:2050,speed:1.7},
+    {x:2500,y:340,w:65,h:60,min:2250,max:2750,speed:2}
+  ];
+
+  coins.forEach(c => c.got = false);
+};
+
+loop();
+</script>
+
+</body>
+</html>
